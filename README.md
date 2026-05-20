@@ -7,9 +7,9 @@
 每次推送 `main` 分支或 `v*` 标签时，GitHub Actions 自动构建多架构镜像（linux/amd64, linux/arm64）并推送至 GHCR：
 
 ```
-ghcr.io/<你的 GitHub 用户名>/hapi-docker:main
-ghcr.io/<你的 GitHub 用户名>/hapi-docker:<sha>
-ghcr.io/<你的 GitHub 用户名>/hapi-docker:<tag>
+ghcr.io/arkylin/hapi-docker:main
+ghcr.io/arkylin/hapi-docker:<sha>
+ghcr.io/arkylin/hapi-docker:<tag>
 ```
 
 ## 快速开始
@@ -41,7 +41,7 @@ docker compose logs -f
 ```yaml
 services:
   hapi-hub:
-    image: ghcr.io/your-username/hapi-docker:main
+    image: ghcr.io/arkylin/hapi-docker:main
     container_name: hapi-hub
     ...
 ```
