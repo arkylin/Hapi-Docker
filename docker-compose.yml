@@ -1,0 +1,18 @@
+services:
+  hapi-hub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hapi-hub
+    restart: unless-stopped
+    ports:
+      - "3006:3006"
+    volumes:
+      - ./hapi-data:/root/.hapi
+    environment:
+      - CLI_API_TOKEN=${CLI_API_TOKEN:?请设置 CLI_API_TOKEN 环境变量}
+      - HAPI_LISTEN_HOST=0.0.0.0
+      - HAPI_LISTEN_PORT=3006
+      - HAPI_PUBLIC_URL=${HAPI_PUBLIC_URL}
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - TZ=${TZ:-Asia/Shanghai}
