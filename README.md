@@ -52,17 +52,42 @@ docker compose logs -f
 
 ### 1. 安装 HAPI CLI
 
-```bash
+**Windows (npm):**
+
+```powershell
 npm install -g @twsxtd/hapi --registry=https://registry.npmjs.org
 ```
 
-或用 Homebrew：
+**macOS / Linux:**
 
 ```bash
+npm install -g @twsxtd/hapi --registry=https://registry.npmjs.org
+# 或
 brew install tiann/tap/hapi
 ```
 
 ### 2. 配置连接 Hub
+
+**Windows (PowerShell):**
+
+```powershell
+$env:HAPI_API_URL="http://服务器IP:3006"
+$env:CLI_API_TOKEN="你在 docker-compose.yml 里填的令牌"
+```
+
+> 将以上两行加入 `$PROFILE`（PowerShell 配置文件）避免重复设置：
+> ```powershell
+> notepad $PROFILE
+> ```
+
+**Windows (CMD):**
+
+```cmd
+set HAPI_API_URL=http://服务器IP:3006
+set CLI_API_TOKEN=你在 docker-compose.yml 里填的令牌
+```
+
+**macOS / Linux:**
 
 ```bash
 export HAPI_API_URL="http://服务器IP:3006"
