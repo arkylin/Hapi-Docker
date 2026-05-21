@@ -1,0 +1,76 @@
+name: Release Self Binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: 'Commit SHA to build (leave empty for latest self branch)'
+        required: false
+      tag:
+        description: 'Release tag (leave empty for auto-generated)'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout hapi self branch
+        uses: actions/checkout@v4
+        with:
+          repository: arkylin/hapi
+          ref: ${{ github.event.inputs.commit || 'self' }}
+          path: hapi-src
+
+      - name: Get version info
+        id: info
+        working-directory: hapi-src
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          VERSION=$(jq -r '.version' cli/package.json)
+          INPUT_TAG="${{ github.event.inputs.tag }}"
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="self-${SHORT_SHA}"
+          fi
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Building version $VERSION @ $SHORT_SHA, release tag=$TAG"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.3.14
+
+      - name: Build all platform binaries
+        working-directory: hapi-src
+        run: |
+          bun install
+          bun run build:single-exe:all
+
+      - name: Prepare release artifacts
+        run: |
+          mkdir -p release
+          cp hapi-src/cli/dist-exe/bun-linux-x64-baseline/hapi release/hapi-linux-x64
+          cp hapi-src/cli/dist-exe/bun-linux-arm64/hapi release/hapi-linux-arm64
+          cp hapi-src/cli/dist-exe/bun-darwin-x64/hapi release/hapi-darwin-x64
+          cp hapi-src/cli/dist-exe/bun-darwin-arm64/hapi release/hapi-darwin-arm64
+          cp hapi-src/cli/dist-exe/bun-windows-x64/hapi.exe release/hapi-windows-x64.exe
+          ls -la release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.tag || format('self-{0}', steps.info.outputs.short_sha) }}
+          name: Self Build ${{ steps.info.outputs.version }} (${{ steps.info.outputs.short_sha }})
+          body: |
+            Self-built hapi binaries from [arkylin/hapi](https://github.com/arkylin/hapi) `self` branch.
+
+            - Version: ${{ steps.info.outputs.version }}
+            - Commit: `${{ steps.info.outputs.short_sha }}`
+          files: release/*
+          fail_on_unmatched_files: true
