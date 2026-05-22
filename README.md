@@ -30,7 +30,10 @@ services:
       - CLI_API_TOKEN=这里填一个只有你知道的随机字符串
       - HAPI_LISTEN_HOST=0.0.0.0
       - HAPI_LISTEN_PORT=3006
+      - CORS_ORIGINS=*
 ```
+
+> 如果使用 nginx 反向代理，必须设置 `CORS_ORIGINS=*`，否则 Web 终端（Socket.IO WebSocket）会因 CORS 校验失败返回 403。
 
 ### 3. 启动
 
@@ -168,7 +171,7 @@ docker exec hapi-hub hapi runner start --foreground
 |------|------|--------|------|
 | `CLI_API_TOKEN` | 是 | - | 认证令牌，CLI 和 Web 登录使用 |
 | `HAPI_PUBLIC_URL` | 否 | - | Hub 公网地址（用于 Telegram 等回调） |
-| `CORS_ORIGINS` | 否 | `*` | 允许的 CORS 域名 |
+| `CORS_ORIGINS` | 否 | `*` | 允许的 CORS 域名。反向代理（如 nginx）场景下 WebSocket 终端必设 `*` |
 | `TZ` | 否 | `Asia/Shanghai` | 时区 |
 
 ## 持久化数据
