@@ -14,6 +14,7 @@
   - [连接 Hub](#连接-hub)
   - [启动 AI 会话](#启动-ai-会话)
 - [开机自启 Runner](#开机自启-runner)
+- [构建方式](#构建方式)
 - [使用指南](#使用指南)
 - [参考](#参考)
 
@@ -34,7 +35,8 @@ mkdir -p /opt/hapi-hub && cd /opt/hapi-hub
 ```yaml
 services:
   hapi-hub:
-    image: ghcr.io/arkylin/hapi-docker:latest
+    # image: ghcr.io/arkylin/hapi-docker:latest  # 默认：从 npm 安装
+    image: ghcr.io/arkylin/hapi-docker:latest     # 可选：origin（官方仓库构建）、self（fork 构建）
     container_name: hapi-hub
     restart: unless-stopped
     ports:
@@ -183,7 +185,7 @@ if ($existing) {
     Unregister-ScheduledTask -TaskName "HAPI Runner" -Confirm:$false
 }
 
-$trigger = New-ScheduledTaskTrigger -Logon
+$trigger = New-ScheduledTaskTrigger -AtLogon
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument '-WindowStyle Hidden -Command "hapi runner start"'
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 72) -MultipleInstances IgnoreNew
@@ -256,6 +258,76 @@ systemctl --user disable hapi-runner.service  # 禁用开机自启
 
 ---
 
+## 构建方式
+
+以下方式按复杂度从低到高排列，日常使用推荐[默认方式](#默认方式npm)。
+
+### 默认方式（npm）
+
+根目录 `Dockerfile` 从 npm 安装 `@twsxtd/hapi`，无需编译：
+
+```bash
+docker compose up -d
+```
+
+### 预构建镜像
+
+CI 自动推送的镜像，可直接替换 `docker-compose.yml` 中的 `image`：
+
+| 标签 | 来源 | 说明 |
+|------|------|------|
+| `latest` | npm registry | 与默认方式等价 |
+| `origin` | `tiann/hapi@main` | 官方仓库最新 main 分支编译 |
+| `self` | `arkylin/hapi@self` | Fork 的 self 分支编译 |
+
+```yaml
+services:
+  hapi-hub:
+    image: ghcr.io/arkylin/hapi-docker:origin
+    # ... 其余配置不变
+```
+
+### 本地构建 origin
+
+从官方仓库 `tiann/hapi@main` 克隆并编译：
+
+```bash
+cd origin
+./build.sh
+```
+
+编译完成后生成本地镜像 `hapi:origin`。
+
+### 本地构建 self
+
+从本地 `../hapi`（需提前克隆 [arkylin/hapi](https://github.com/arkylin/hapi) 的 `self` 分支并编译）复制二进制：
+
+```bash
+cd hapi
+bun install
+bun run build:single-exe
+
+cd ../Hapi-Docker/self
+./build.sh
+```
+
+编译完成后生成本地镜像 `hapi:self`。
+
+### CI 自动构建
+
+使用统一的 GitHub Actions workflow（`.github/workflows/build-and-release.yml`），手动触发时填写参数：
+
+| 参数 | 说明 | 示例 |
+|------|------|------|
+| `repository` | 源码仓库 | `tiann/hapi`、`arkylin/hapi` |
+| `ref` | 分支 / tag / commit | `main`、`self`、`v1.0.0` |
+| `docker_tag` | Docker 镜像标签 | `origin`、`self` |
+| `release_tag` | 二进制发布标签（留空则跳过） | `v1.0.0-origin` |
+| `build_docker` | 是否构建并推送 Docker 镜像 | `true` / `false` |
+| `release_binaries` | 是否发布二进制 | `true` / `false` |
+
+---
+
 ## 使用指南
 
 ### 手机 / 网页端访问
@@ -303,11 +375,11 @@ docker exec hapi-hub hapi runner start --foreground
 - `settings.json` — 配置文件
 - `hapi.db` — SQLite 数据库
 
-### 本地构建（可选）
+### 本地克隆仓库（可选）
 
 ```bash
 git clone https://github.com/arkylin/Hapi-Docker.git
 cd Hapi-Docker
-# 编辑 .env
+# 编辑 docker-compose.yml
 docker compose up -d
 ```
