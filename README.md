@@ -68,26 +68,57 @@ brew install tiann/tap/hapi
 
 ### 2. 配置连接 Hub
 
-**Windows (PowerShell):**
+> `hapi auth login` 只录入 token，服务器地址仍需单独配置。
+
+**方式一：配置文件（推荐）**
+
+编辑 `~/.hapi/settings.json`：
+
+```json
+{
+  "apiUrl": "http://服务器IP:3006",
+  "cliApiToken": "你在 docker-compose.yml 里填的令牌"
+}
+```
+
+然后用 `hapi auth login` 验证（或直接保存后生效）。
+
+**方式二：交互式录入 token**
+
+```bash
+hapi auth login
+```
+
+按提示粘贴 CLI_API_TOKEN 即可，Token 自动保存到 settings.json。  
+但 `HAPI_API_URL` 仍需通过方式一写入 settings.json 或通过方式三设置环境变量。
+
+**方式三：环境变量**
+
+<details>
+<summary>Windows (PowerShell)</summary>
 
 ```powershell
 $env:HAPI_API_URL="http://服务器IP:3006"
 $env:CLI_API_TOKEN="你在 docker-compose.yml 里填的令牌"
 ```
 
-> 将以上两行加入 `$PROFILE`（PowerShell 配置文件）避免重复设置：
+> 将以上两行加入 `$PROFILE` 避免重复设置：
 > ```powershell
 > notepad $PROFILE
 > ```
+</details>
 
-**Windows (CMD):**
+<details>
+<summary>Windows (CMD)</summary>
 
 ```cmd
 set HAPI_API_URL=http://服务器IP:3006
 set CLI_API_TOKEN=你在 docker-compose.yml 里填的令牌
 ```
+</details>
 
-**macOS / Linux:**
+<details>
+<summary>macOS / Linux</summary>
 
 ```bash
 export HAPI_API_URL="http://服务器IP:3006"
@@ -95,6 +126,14 @@ export CLI_API_TOKEN="你在 docker-compose.yml 里填的令牌"
 ```
 
 > 建议将这两行写入 `~/.bashrc` 或 `~/.zshrc` 避免重复设置。
+</details>
+
+其他认证命令：
+
+```bash
+hapi auth status   # 查看当前登录状态
+hapi auth logout   # 退出登录
+```
 
 ### 3. 启动 AI 会话
 
@@ -116,6 +155,105 @@ hapi opencode
 ```
 
 会话启动后，会在 Hub 注册，Web 端和手机上都能看到。
+
+---
+
+## Windows 开机自启 Runner（可选）
+
+如果你希望每次登录 Windows 后 **Runner 自动在后台启动**（无需保持终端打开，Web 端可随时创建新会话），可以使用以下一键脚本：
+
+### 一键安装脚本
+
+在 PowerShell 中执行（管理员权限**不需要**，普通用户权限即可）：
+
+```powershell
+# 检查 hapi CLI 是否已安装
+$hapi = Get-Command "hapi" -ErrorAction SilentlyContinue
+if (-not $hapi) {
+    Write-Host "[错误] 未找到 hapi CLI，请先执行：npm install -g @twsxtd/hapi" -ForegroundColor Red
+    exit 1
+}
+
+# 检查 settings.json 是否已配置
+$hapiHome = Join-Path $env:USERPROFILE ".hapi"
+$settingsPath = Join-Path $hapiHome "settings.json"
+if (-not (Test-Path $settingsPath)) {
+    Write-Host "[警告] 未找到 ~/.hapi/settings.json，请先配置 Hub 连接地址和 Token" -ForegroundColor Yellow
+    Write-Host "配置路径: $settingsPath" -ForegroundColor Yellow
+}
+
+# 如果任务已存在，先删除
+$existing = Get-ScheduledTask -TaskName "HAPI Runner" -ErrorAction SilentlyContinue
+if ($existing) {
+    Write-Host "[信息] 发现已存在的 HAPI Runner 任务，正在重新创建..." -ForegroundColor Cyan
+    Unregister-ScheduledTask -TaskName "HAPI Runner" -Confirm:$false
+}
+
+# 创建触发器：用户登录时触发
+$trigger = New-ScheduledTaskTrigger -Logon
+
+# 创建操作：隐藏窗口启动 runner
+$action = New-ScheduledTaskAction `
+    -Execute "powershell.exe" `
+    -Argument '-WindowStyle Hidden -Command "hapi runner start"'
+
+# 创建运行主体：当前用户
+$principal = New-ScheduledTaskPrincipal `
+    -UserId $env:USERNAME `
+    -LogonType Interactive
+
+# 任务设置
+$settings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -StartWhenAvailable `
+    -ExecutionTimeLimit (New-TimeSpan -Hours 72) `
+    -MultipleInstances IgnoreNew
+
+# 注册任务
+Register-ScheduledTask `
+    -TaskName "HAPI Runner" `
+    -Trigger $trigger `
+    -Action $action `
+    -Principal $principal `
+    -Settings $settings `
+    -Force | Out-Null
+
+# 验证
+$task = Get-ScheduledTask -TaskName "HAPI Runner" -ErrorAction SilentlyContinue
+if ($task) {
+    Write-Host "[成功] HAPI Runner 计划任务已创建！" -ForegroundColor Green
+    Write-Host "  任务名: HAPI Runner" -ForegroundColor Gray
+    Write-Host "  触发器: 用户登录时自动启动" -ForegroundColor Gray
+    Write-Host "  命令  : powershell -WindowStyle Hidden -Command `"hapi runner start`"" -ForegroundColor Gray
+    Write-Host "  执行  : $env:USERNAME" -ForegroundColor Gray
+    Write-Host "" -ForegroundColor Gray
+    Write-Host "下次登录 Windows 时 Runner 将自动启动。" -ForegroundColor Green
+    Write-Host "你也可以手动启动: Start-ScheduledTask -TaskName `"HAPI Runner`"" -ForegroundColor DarkGray
+} else {
+    Write-Host "[失败] 任务创建失败，请检查权限或手动排查。" -ForegroundColor Red
+}
+```
+
+### 卸载/移除任务
+
+```powershell
+Unregister-ScheduledTask -TaskName "HAPI Runner" -Confirm:$false
+Write-Host "HAPI Runner 计划任务已删除。"
+```
+
+### 手动控制
+
+```powershell
+# 立即启动
+Start-ScheduledTask -TaskName "HAPI Runner"
+
+# 查看状态
+Get-ScheduledTask -TaskName "HAPI Runner" | Get-ScheduledTaskInfo
+
+# 停止任务（会停止 runner 进程）
+Stop-ScheduledTask -TaskName "HAPI Runner"
+```
 
 ---
 
